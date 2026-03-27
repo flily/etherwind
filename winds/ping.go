@@ -89,6 +89,10 @@ func (c *PingConn) IsIPv6() bool {
 	return c.connV6 != nil
 }
 
+func (c *PingConn) SetReadDeadline(ddl time.Time) error {
+	return c.conn.SetReadDeadline(ddl)
+}
+
 func (c *PingConn) ReadFrom(b []byte) (int, int, net.Addr, error) {
 	var err error
 	var addr net.Addr
@@ -147,7 +151,8 @@ func MakePayloadWithTimestampMacOS(base []byte, t time.Time) []byte {
 }
 
 type Pinger struct {
-	conn *PingConn
+	conn    *PingConn
+	timeout time.Duration
 }
 
 func NewPinger(network string) (*Pinger, error) {
@@ -157,7 +162,8 @@ func NewPinger(network string) (*Pinger, error) {
 	}
 
 	sender := &Pinger{
-		conn: conn,
+		conn:    conn,
+		timeout: 1 * time.Second,
 	}
 	return sender, nil
 }
@@ -208,6 +214,7 @@ func (s *Pinger) Ping(address net.IP, id int, seq int, payload []byte) (*PingRes
 	}
 
 	for {
+		_ = s.conn.SetReadDeadline(timeStart.Add(s.timeout))
 		recvLen, ttl, _, err := s.conn.ReadFrom(recvBuf)
 		if err != nil {
 			return nil, err

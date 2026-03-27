@@ -1,6 +1,7 @@
 package ping
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -44,8 +45,17 @@ func Main(args []string) {
 	for {
 		result, err := pinger.Ping(addr, id, seq, payloadBase)
 		if err != nil {
-			fmt.Printf("Error pinging %s: %s\n", addr, err.Error())
-			return
+			if operr, ok := err.(*net.OpError); ok && operr.Timeout() {
+				fmt.Printf("Request timeout for icmp_seq %d\n", seq)
+				seq++
+
+			} else {
+				errMessage := errors.Unwrap(err)
+				fmt.Printf("ping: %s\n", errMessage)
+			}
+
+			time.Sleep(1 * time.Second)
+			continue
 		}
 
 		fmt.Printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.6f ms\n",
