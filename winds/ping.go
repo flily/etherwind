@@ -2,9 +2,9 @@ package winds
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 	"slices"
-	"strings"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -51,11 +51,17 @@ type PingConn struct {
 	conn   *icmp.PacketConn
 	connV4 *ipv4.PacketConn
 	connV6 *ipv6.PacketConn
-	raw    bool
 }
 
 func NewPingConn(network string) (*PingConn, error) {
-	conn, err := icmp.ListenPacket(network, "")
+	if network != NetworkIPv4 && network != NetworkIPv6 {
+		m := fmt.Sprintf("invalid network type '%s', pick one of '%s' or '%s'",
+			network, NetworkIPv4, NetworkIPv6)
+		panic(m)
+	}
+
+	listenNetwork := pingerGetNetwork(network)
+	conn, err := icmp.ListenPacket(listenNetwork, "")
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +70,6 @@ func NewPingConn(network string) (*PingConn, error) {
 		conn:   conn,
 		connV4: conn.IPv4PacketConn(),
 		connV6: conn.IPv6PacketConn(),
-		raw:    strings.HasPrefix(network, "ip4:") || strings.HasPrefix(network, "ip6:"),
 	}
 
 	if pingConn.connV4 != nil {
@@ -90,10 +95,6 @@ func (c *PingConn) Close() error {
 
 func (c *PingConn) IsIPv6() bool {
 	return c.connV6 != nil
-}
-
-func (c *PingConn) IsRaw() bool {
-	return c.raw
 }
 
 func (c *PingConn) SetReadDeadline(ddl time.Time) error {
@@ -203,12 +204,6 @@ func (s *Pinger) Ping(address net.IP, id int, seq int, payload []byte) (*PingRes
 	}
 
 	recvBuf := make([]byte, 1500)
-	var remote net.Addr
-	if s.conn.IsRaw() {
-		remote = &net.IPAddr{IP: address}
-	} else {
-		remote = &net.UDPAddr{IP: address}
-	}
 
 	timeStart := time.Now()
 	echoRequest.Data = MakePayloadWithTimestampLinux(payload, timeStart)
@@ -218,6 +213,8 @@ func (s *Pinger) Ping(address net.IP, id int, seq int, payload []byte) (*PingRes
 		return nil, err
 	}
 
+	s.conn.IsIPv6()
+	remote := pingerMakeAddress(address)
 	_, err = s.conn.WriteTo(remote, messageBytes)
 	if err != nil {
 		return nil, err

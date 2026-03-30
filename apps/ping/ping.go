@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
-	"syscall"
+	"runtime"
 	"time"
 
 	"github.com/flily/etherwind/winds"
@@ -28,44 +27,10 @@ func isPermissionDenied(err error) bool {
 	}
 
 	if errors.Is(err, os.ErrPermission) {
-		fmt.Printf("os.ErrPermission: %s\n", err)
 		return true
 	}
 
-	if errors.Is(err, syscall.EPERM) {
-		fmt.Printf("syscall.EPERM: %s\n", err)
-		return true
-	}
-
-	if errors.Is(err, syscall.EACCES) {
-		fmt.Printf("syscall.EACCES: %s\n", err)
-		return true
-	}
-
-	return strings.Contains(strings.ToLower(err.Error()), "permission denied")
-}
-
-func createPinger(addr net.IP) (*winds.Pinger, string, error) {
-	networkCandidates := []string{"udp4", "ip4:icmp"}
-	if addr.To4() == nil {
-		networkCandidates = []string{"udp6", "ip6:ipv6-icmp"}
-	}
-
-	var lastErr error
-	for _, network := range networkCandidates {
-		pinger, err := winds.NewPinger(network)
-		if err == nil {
-			return pinger, network, nil
-		}
-
-		lastErr = err
-		fmt.Printf("ERROR ON '%s': %s\n", network, err)
-		if !isPermissionDenied(err) {
-			break
-		}
-	}
-
-	return nil, "", lastErr
+	return false
 }
 
 func Main(args []string) {
@@ -80,26 +45,29 @@ func Main(args []string) {
 		return
 	}
 
-	pinger, network, err := createPinger(addr)
+	network := winds.NetworkIPv4
+	if addr.To4() == nil {
+		network = winds.NetworkIPv6
+	}
+
+	pinger, err := winds.NewPinger(network)
 	if err != nil {
 		errMessage := rootError(err)
 		if isPermissionDenied(err) {
 			fmt.Printf("No permission to start ping: %s\n", errMessage.Error())
-			fmt.Printf("Hint: use `sudo setcap cap_net_raw=+ep etherwind` or `sudo` to get root privileges\n")
-			return
+			if runtime.GOOS == "linux" {
+				fmt.Printf("Hint: use `sudo setcap cap_net_raw=+ep etherwind` or `sudo` to get root privileges\n")
+			}
+
+		} else {
+			fmt.Printf("Failed to create pinger: %s\n", errMessage.Error())
 		}
 
-		fmt.Printf("Error creating pinger: %s\n", errMessage.Error())
 		return
 	}
 	defer func() {
 		_ = pinger.Close()
 	}()
-
-	if addr.To4() == nil {
-		fmt.Printf("ipv6\n")
-	}
-	fmt.Printf("Using network mode: %s\n", network)
 
 	payloadBase := winds.DefaultPingPayloadBase
 	fmt.Printf("PING %s: %d data bytes\n", addr, len(payloadBase)+16)
