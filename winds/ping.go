@@ -47,6 +47,21 @@ type PingResult struct {
 	Data     []byte
 }
 
+func pingerGetNetwork(network string) string {
+	switch network {
+	case NetworkIPv4:
+		return pingProtocolNetworkIPv4
+	case NetworkIPv6:
+		return pingProtocolNetworkIPv6
+	default:
+		panic("invalid network type " + network)
+	}
+}
+
+func pingerMakeAddress(address net.IP) net.Addr {
+	return &pingTargetAddressType{IP: address}
+}
+
 type PingConn struct {
 	conn   *icmp.PacketConn
 	connV4 *ipv4.PacketConn
