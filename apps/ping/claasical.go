@@ -1,20 +1,23 @@
 package ping
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"runtime"
 	"time"
 
 	"github.com/flily/etherwind/winds"
 )
 
-func MainClassical(params *Params) {
+func runClassicalPing(params *Params, records *TimeRecord, finished chan struct{}) {
 	addr := net.ParseIP(params.Target[0])
 	if addr == nil {
 		fmt.Printf("Invalid IP address: %s\n", params.Target[0])
+		finished <- struct{}{}
 		return
 	}
 
@@ -36,8 +39,10 @@ func MainClassical(params *Params) {
 			fmt.Printf("Failed to create pinger: %s\n", errMessage.Error())
 		}
 
+		finished <- struct{}{}
 		return
 	}
+
 	defer func() {
 		_ = pinger.Close()
 	}()
@@ -63,15 +68,40 @@ func MainClassical(params *Params) {
 			continue
 		}
 
+		pingTimeMs := float64(result.Duration) / float64(time.Millisecond)
 		fmt.Printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.6f ms\n",
 			len(result.Raw),
 			addr,
 			result.Seq,
 			result.TTL,
-			float64(result.Duration)/float64(time.Millisecond),
+			pingTimeMs,
 		)
+		records.Add(pingTimeMs)
 		seq++
 
 		time.Sleep(1 * time.Second)
+	}
+
+	finished <- struct{}{}
+}
+
+func MainClassical(params *Params) {
+	finished := make(chan struct{})
+	records := NewTimeRecords(3600)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	go runClassicalPing(params, records, finished)
+
+	select {
+	case <-finished:
+
+	case <-ctx.Done():
+		fmt.Printf("\n--- %s ping statistics ---\n", params.Target[0])
+		fmt.Printf("%d packets transmitted, %d received, %.2f%% packet loss\n",
+			len(records.Records), len(records.Records), 100.0*(1.0-float64(len(records.Records))/float64(len(records.Records))))
+		fmt.Printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
+			records.Min(), records.Average(), records.Max(), records.StandardDeviation(),
+		)
 	}
 }
