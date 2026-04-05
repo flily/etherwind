@@ -13,7 +13,7 @@ import (
 	"github.com/flily/etherwind/winds"
 )
 
-func runClassicalPing(params *Params, records *TimeRecord, finished chan struct{}) {
+func runClassicalPing(params *Params, records *PingRecord, finished chan struct{}) {
 	addr := net.ParseIP(params.Target[0])
 	if addr == nil {
 		fmt.Printf("Invalid IP address: %s\n", params.Target[0])
@@ -50,9 +50,10 @@ func runClassicalPing(params *Params, records *TimeRecord, finished chan struct{
 	payloadBase := winds.DefaultPingPayloadBase
 	fmt.Printf("PING %s: %d data bytes\n", addr, len(payloadBase)+16)
 
+	count := params.Count
 	seq := 1
 	id := os.Getpid() & 0xffff
-	for {
+	for count < 0 || seq <= count {
 		result, err := pinger.Ping(addr, id, seq, payloadBase)
 		if err != nil {
 			if operr, ok := err.(*net.OpError); ok && operr.Timeout() {
@@ -64,12 +65,13 @@ func runClassicalPing(params *Params, records *TimeRecord, finished chan struct{
 				fmt.Printf("ping: %s\n", errMessage)
 			}
 
+			records.AddFailure()
 			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		pingTimeMs := float64(result.Duration) / float64(time.Millisecond)
-		fmt.Printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.6f ms\n",
+		fmt.Printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.2f ms\n",
 			len(result.Raw),
 			addr,
 			result.Seq,
@@ -87,7 +89,7 @@ func runClassicalPing(params *Params, records *TimeRecord, finished chan struct{
 
 func MainClassical(params *Params) {
 	finished := make(chan struct{})
-	records := NewTimeRecords(3600)
+	records := NewPingRecord(3600)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -95,13 +97,14 @@ func MainClassical(params *Params) {
 
 	select {
 	case <-finished:
-
 	case <-ctx.Done():
-		fmt.Printf("\n--- %s ping statistics ---\n", params.Target[0])
-		fmt.Printf("%d packets transmitted, %d received, %.2f%% packet loss\n",
-			len(records.Records), len(records.Records), 100.0*(1.0-float64(len(records.Records))/float64(len(records.Records))))
-		fmt.Printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
-			records.Min(), records.Average(), records.Max(), records.StandardDeviation(),
-		)
 	}
+
+	fmt.Printf("\n")
+	fmt.Printf("--- %s ping statistics ---\n", params.Target[0])
+	fmt.Printf("%d packets transmitted, %d received, %.2f%% packet loss, time %.2f ms\n",
+		records.Count, records.PacketsSuccess(), records.PacketLoss(), records.TimeCostMs())
+	fmt.Printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
+		records.Min(), records.Average(), records.Max(), records.StandardDeviation(),
+	)
 }
