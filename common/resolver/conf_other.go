@@ -4,5 +4,5 @@ package resolver
 
 const (
 	DefaultSystemResolverConfigurePath   = "/etc/resolv.conf"
-	DefaultSystemResolverConfigureFormat = "resolv.conf"
+	DefaultSystemResolverConfigureFormat = ConfigureTypeResolvConf
 )
