@@ -62,3 +62,27 @@ func ParseResolvConfContent(content string) (*Configure, error) {
 
 	return conf, nil
 }
+
+func (c *Configure) MakeDefaultUDPEndpoints(port int) []*net.UDPAddr {
+	endpoints := make([]*net.UDPAddr, 0, len(c.Nameservers))
+	for _, ip := range c.Nameservers {
+		endpoints = append(endpoints, &net.UDPAddr{
+			IP:   ip,
+			Port: port,
+		})
+	}
+
+	return endpoints
+}
+
+func (c *Configure) MakeDefaultTCPEndpoints(port int) []*net.TCPAddr {
+	endpoints := make([]*net.TCPAddr, 0, len(c.Nameservers))
+	for _, ip := range c.Nameservers {
+		endpoints = append(endpoints, &net.TCPAddr{
+			IP:   ip,
+			Port: port,
+		})
+	}
+
+	return endpoints
+}
