@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/flily/etherwind/apps/nslookup"
 	"github.com/flily/etherwind/apps/ping"
 )
 
 var commandList = map[string]func(args []string){
-	"ping": ping.Main,
+	"ping":     ping.Main,
+	"nslookup": nslookup.Main,
 }
 
 func usage() {
