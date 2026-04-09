@@ -64,35 +64,21 @@ func ToAddrs[T net.Addr](ips []T) []net.Addr {
 	return addrs
 }
 
-func newResolver(servers []net.Addr) *Resolver {
-	ns := make([]*net.Resolver, 0, len(servers))
-	for _, s := range servers {
-		nameserver := &net.Resolver{
-			PreferGo: true,
-			Dial:     makeDNSDialer(s),
-		}
-
-		ns = append(ns, nameserver)
-	}
-
+func newResolverWithInfo(from string, fromType ConfigureType) *Resolver {
 	r := &Resolver{
-		NameServers: slices.Clone(servers),
-		queryCount:  0,
-		resolvers:   ns,
+		from:     from,
+		fromType: fromType,
 	}
 
 	return r
 }
 
 func NewResolverFrom(path string) (*Resolver, error) {
-	conf, err := ParseResolvConf(path)
+	r := newResolverWithInfo(path, ConfigureTypeResolvConf)
+	_, err := r.ReloadFromConfigure(path)
 	if err != nil {
 		return nil, err
 	}
-
-	r := newResolver(ToAddrs(conf.MakeDefaultUDPEndpoints(DNSDefaultPort)))
-	r.from = path
-	r.fromType = ConfigureTypeResolvConf
 
 	return r, nil
 }
@@ -102,9 +88,8 @@ func NewDefaultResolver() (*Resolver, error) {
 }
 
 func NewResolver(nameServers []net.Addr) *Resolver {
-	r := newResolver(nameServers)
-	r.from = ""
-	r.fromType = ConfigureTypeCustom
+	r := newResolverWithInfo("", ConfigureTypeCustom)
+	r.Reload(nameServers)
 
 	return r
 }
@@ -122,6 +107,35 @@ func NewResolverFromIP(addresses []net.IP, port int) *Resolver {
 	return NewResolver(addrs)
 }
 
+func (r *Resolver) Reload(nameServers []net.Addr) []net.Addr {
+	ns := make([]*net.Resolver, 0, len(nameServers))
+	for _, s := range nameServers {
+		nameserver := &net.Resolver{
+			PreferGo: true,
+			Dial:     makeDNSDialer(s),
+		}
+
+		ns = append(ns, nameserver)
+	}
+
+	r.NameServers = slices.Clone(nameServers)
+	r.resolvers = ns
+	r.queryCount = 0
+	return r.NameServers
+}
+
+func (r *Resolver) ReloadFromConfigure(path string) ([]net.Addr, error) {
+	conf, err := ParseResolvConf(path)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoints := conf.MakeDefaultUDPEndpoints(DNSDefaultPort)
+	r.from = path
+	r.fromType = ConfigureTypeResolvConf
+	return r.Reload(ToAddrs(endpoints)), nil
+}
+
 func (r *Resolver) From() string {
 	return r.from
 }
@@ -130,12 +144,20 @@ func (r *Resolver) FromType() ConfigureType {
 	return r.fromType
 }
 
-func (r *Resolver) LookupIP(ctx context.Context, name string) ([]net.IP, net.Addr, error) {
+func (r *Resolver) LookupIP(ctx context.Context, network string, name string) ([]net.IP, net.Addr, error) {
 	index := r.queryCount % len(r.NameServers)
 	addr := r.NameServers[index]
 	ns := r.resolvers[index]
 	r.queryCount++
 
-	ips, err := ns.LookupIP(ctx, "ip", name)
+	ips, err := ns.LookupIP(ctx, network, name)
 	return ips, addr, err
+}
+
+func (r *Resolver) LookupIPv4(ctx context.Context, name string) ([]net.IP, net.Addr, error) {
+	return r.LookupIP(ctx, "ip4", name)
+}
+
+func (r *Resolver) LookupIPv6(ctx context.Context, name string) ([]net.IP, net.Addr, error) {
+	return r.LookupIP(ctx, "ip6", name)
 }
