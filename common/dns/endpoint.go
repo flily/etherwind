@@ -8,13 +8,12 @@ import (
 type Endpoint interface {
 	Address() string
 	FullAddress() string
-	Dial() error
+	Dial() (net.Conn, error)
 }
 
 type UDPEndpoint struct {
 	IP   net.IP
 	Port int
-	conn *net.UDPConn
 }
 
 func NewUDPEndpoint(ip net.IP, port int) Endpoint {
@@ -35,7 +34,7 @@ func (e *UDPEndpoint) FullAddress() string {
 	return base + "/udp"
 }
 
-func (e *UDPEndpoint) Dial() error {
+func (e *UDPEndpoint) Dial() (net.Conn, error) {
 	raddr := &net.UDPAddr{
 		IP:   e.IP,
 		Port: e.Port,
@@ -43,17 +42,15 @@ func (e *UDPEndpoint) Dial() error {
 
 	conn, err := net.DialUDP("udp", nil, raddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	e.conn = conn
-	return nil
+	return conn, nil
 }
 
 type TCPEndpoint struct {
 	IP   net.IP
 	Port int
-	conn net.Conn
 }
 
 func NewTCPEndpoint(ip net.IP, port int) Endpoint {
@@ -74,7 +71,7 @@ func (e *TCPEndpoint) FullAddress() string {
 	return base + "/tcp"
 }
 
-func (e *TCPEndpoint) Dial() error {
+func (e *TCPEndpoint) Dial() (net.Conn, error) {
 	raddr := &net.TCPAddr{
 		IP:   e.IP,
 		Port: e.Port,
@@ -82,16 +79,14 @@ func (e *TCPEndpoint) Dial() error {
 
 	conn, err := net.DialTCP("tcp", nil, raddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	e.conn = conn
-	return nil
+	return conn, nil
 }
 
 type UNIXEndpoint struct {
 	Path string
-	conn *net.UnixConn
 }
 
 func NewUNIXEndpoint(path string) Endpoint {
@@ -110,7 +105,7 @@ func (e *UNIXEndpoint) FullAddress() string {
 	return e.Path + "/unix"
 }
 
-func (e *UNIXEndpoint) Dial() error {
+func (e *UNIXEndpoint) Dial() (net.Conn, error) {
 	raddr := &net.UnixAddr{
 		Name: e.Path,
 		Net:  "unix",
@@ -118,9 +113,8 @@ func (e *UNIXEndpoint) Dial() error {
 
 	conn, err := net.DialUnix("unix", nil, raddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	e.conn = conn
-	return nil
+	return conn, nil
 }
