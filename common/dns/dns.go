@@ -9,6 +9,7 @@ import (
 type (
 	Type     = dnsmessage.Type
 	Resource = dnsmessage.Resource
+	Message  = dnsmessage.Message
 )
 
 const (

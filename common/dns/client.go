@@ -43,12 +43,12 @@ func (c *Client) Close() error {
 	return err
 }
 
-func (c *Client) Query(t Type, name string) (*dnsmessage.Message, error) {
+func (c *Client) Query(t Type, name string) (*Message, error) {
 	if c.conn == nil {
 		return nil, ErrNotDialed
 	}
 
-	query := dnsmessage.Message{
+	query := Message{
 		Questions: []dnsmessage.Question{
 			{
 				Name:  dnsmessage.MustNewName(name),
@@ -74,7 +74,7 @@ func (c *Client) Query(t Type, name string) (*dnsmessage.Message, error) {
 		return nil, err
 	}
 
-	var resp dnsmessage.Message
+	var resp Message
 	err = resp.Unpack(respBuf[:n])
 	if err != nil {
 		return nil, err

@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"slices"
 
+	"github.com/flily/etherwind/common/dns"
 	"github.com/flily/etherwind/common/resolver"
 )
 
@@ -151,7 +152,7 @@ func runQueryCommand(params *Params, name string) {
 	}
 }
 
-func updateParams(params *Params, cmd Command, r *resolver.Resolver) bool {
+func updateParams(params *Params, cmd Command, r *dns.Resolver) bool {
 	switch cmd.Command {
 	case "exit":
 		return true
@@ -164,14 +165,11 @@ func updateParams(params *Params, cmd Command, r *resolver.Resolver) bool {
 			return false
 		}
 
-		loadedServer := r.Reload([]net.Addr{
-			&net.UDPAddr{
-				IP:   server,
-				Port: resolver.DNSDefaultPort,
-			},
+		loadedServer := r.Reload([]dns.Endpoint{
+			dns.NewUDPEndpoint(server, resolver.DNSDefaultPort),
 		})
 		fmt.Printf("server:\t\t%s\n", server)
-		fmt.Printf("Address:\t%s\n", loadedServer[0].String())
+		fmt.Printf("Address:\t%s\n", loadedServer[0])
 
 	}
 
@@ -179,7 +177,7 @@ func updateParams(params *Params, cmd Command, r *resolver.Resolver) bool {
 }
 
 func MainClassicalInteractiveLoop(finished chan<- struct{}) {
-	r, err := resolver.NewDefaultResolver()
+	r, err := dns.NewDefaultResolver()
 	if err != nil {
 		fmt.Printf("failed to load default nameserver: %v\n", err)
 		return
