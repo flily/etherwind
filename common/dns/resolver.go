@@ -1,9 +1,9 @@
 package dns
 
 import (
+	"context"
 	"net"
 
-	"github.com/flily/etherwind/common/resolver"
 	"golang.org/x/net/dns/dnsmessage"
 )
 
@@ -20,7 +20,7 @@ func NewResolver(endpoints []Endpoint) *Resolver {
 }
 
 func NewDefaultResolver() (*Resolver, error) {
-	conf, err := resolver.ParseResolvConf(resolver.DefaultSystemResolverConfigurePath)
+	conf, err := ParseResolvConf(DefaultSystemResolverConfigurePath)
 	if err != nil {
 		return nil, err
 	}
@@ -59,24 +59,24 @@ func (r *Resolver) getClient() (*Client, error) {
 	return client, nil
 }
 
-func (r *Resolver) QueryRaw(t Type, name string) (*Message, error) {
+func (r *Resolver) QueryRaw(t Type, name string) (*Message, Endpoint, error) {
 	client, err := r.getClient()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	response, err := client.Query(t, name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return response, nil
+	return response, client.Endpoint, nil
 }
 
-func (r *Resolver) QueryA(name string) ([]net.IP, error) {
-	response, err := r.QueryRaw(TypeA, name)
+func (r *Resolver) QueryA(ctx context.Context, name string) ([]net.IP, Endpoint, error) {
+	response, endpoint, err := r.QueryRaw(TypeA, name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ips := make([]net.IP, 0, 16)
@@ -86,5 +86,5 @@ func (r *Resolver) QueryA(name string) ([]net.IP, error) {
 		}
 	}
 
-	return ips, nil
+	return ips, endpoint, nil
 }

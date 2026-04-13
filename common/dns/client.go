@@ -51,7 +51,7 @@ func (c *Client) Query(t Type, name string) (*Message, error) {
 	query := Message{
 		Questions: []dnsmessage.Question{
 			{
-				Name:  dnsmessage.MustNewName(name),
+				Name:  dnsmessage.MustNewName(CanonicalizeName(name)),
 				Type:  t,
 				Class: dnsmessage.ClassINET,
 			},

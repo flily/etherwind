@@ -61,3 +61,15 @@ func GetType(name string) Type {
 var (
 	ErrNotDialed = errors.New("dial before query")
 )
+
+func CanonicalizeName(name string) string {
+	if len(name) == 0 {
+		return "."
+	}
+
+	if name[len(name)-1] != '.' {
+		return name + "."
+	}
+
+	return name
+}

@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package resolver
+package dns
 
 const (
 	DefaultSystemResolverConfigurePath   = "/etc/resolv.conf"

@@ -34,6 +34,10 @@ func (e *UDPEndpoint) FullAddress() string {
 	return base + "/udp"
 }
 
+func (e *UDPEndpoint) String() string {
+	return e.FullAddress()
+}
+
 func (e *UDPEndpoint) Dial() (net.Conn, error) {
 	raddr := &net.UDPAddr{
 		IP:   e.IP,

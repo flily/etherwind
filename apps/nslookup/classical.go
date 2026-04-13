@@ -12,7 +12,6 @@ import (
 	"slices"
 
 	"github.com/flily/etherwind/common/dns"
-	"github.com/flily/etherwind/common/resolver"
 )
 
 const (
@@ -117,9 +116,9 @@ func ParseCommand(line string) Command {
 }
 
 func runQueryCommand(params *Params, name string) {
-	var ns *resolver.Resolver
+	var ns *dns.Resolver
 	if len(params.Server) <= 0 {
-		rsv, err := resolver.NewDefaultResolver()
+		rsv, err := dns.NewDefaultResolver()
 		if err != nil {
 			fmt.Printf("failed to load default nameserver")
 			return
@@ -127,22 +126,19 @@ func runQueryCommand(params *Params, name string) {
 		ns = rsv
 
 	} else {
-		ns = resolver.NewResolver([]net.Addr{
-			&net.UDPAddr{
-				IP:   net.ParseIP(params.Server),
-				Port: resolver.DNSDefaultPort,
-			},
+		ns = dns.NewResolver([]dns.Endpoint{
+			dns.NewUDPEndpoint(net.ParseIP(params.Server), dns.DNSDefaultPort),
 		})
 	}
 
-	result, from, err := ns.LookupIP(context.Background(), "ip", name)
+	result, from, err := ns.QueryA(context.Background(), name)
 	if err != nil {
 		fmt.Printf("failed to lookup IP: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Server:\t\t%s\n", from.String())
-	fmt.Printf("Address:\t%s/%s\n", from.String(), from.Network())
+	fmt.Printf("Server:\t\t%s\n", from.Address())
+	fmt.Printf("Address:\t%s\n", from.FullAddress())
 	fmt.Printf("\n")
 
 	for _, ip := range result {
@@ -166,7 +162,7 @@ func updateParams(params *Params, cmd Command, r *dns.Resolver) bool {
 		}
 
 		loadedServer := r.Reload([]dns.Endpoint{
-			dns.NewUDPEndpoint(server, resolver.DNSDefaultPort),
+			dns.NewUDPEndpoint(server, dns.DNSDefaultPort),
 		})
 		fmt.Printf("server:\t\t%s\n", server)
 		fmt.Printf("Address:\t%s\n", loadedServer[0])

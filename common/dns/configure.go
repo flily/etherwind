@@ -1,4 +1,4 @@
-package resolver
+package dns
 
 import (
 	"fmt"
@@ -6,6 +6,17 @@ import (
 	"os"
 	"regexp"
 	"strings"
+)
+
+const (
+	DNSDefaultPort = 53
+)
+
+type ConfigureType int
+
+const (
+	ConfigureTypeCustom ConfigureType = iota
+	ConfigureTypeResolvConf
 )
 
 // resolv.conf format reference: https://man7.org/linux/man-pages/man5/resolv.conf.5.html
