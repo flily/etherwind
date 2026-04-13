@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/flily/etherwind/common/dns"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 const (
@@ -115,6 +116,23 @@ func ParseCommand(line string) Command {
 	return cmd
 }
 
+func showAnswers(answers []dnsmessage.Resource) {
+	for _, answer := range answers {
+		name := answer.Header.Name
+
+		switch answer.Header.Type {
+		case dns.TypeA:
+			ans := answer.Body.(*dnsmessage.AResource)
+			fmt.Printf("Name:\t%s\n", name)
+			fmt.Printf("Address:\t%s\n", net.IP(ans.A[:]).String())
+
+		case dns.TypeCNAME:
+			ans := answer.Body.(*dnsmessage.CNAMEResource)
+			fmt.Printf("%s\tcanonical name = %s\n", name, ans.CNAME)
+		}
+	}
+}
+
 func runQueryCommand(params *Params, name string) {
 	var ns *dns.Resolver
 	if len(params.Server) <= 0 {
@@ -131,7 +149,7 @@ func runQueryCommand(params *Params, name string) {
 		})
 	}
 
-	result, from, err := ns.QueryA(context.Background(), name)
+	result, from, err := ns.QueryRaw(context.Background(), dns.TypeA, name)
 	if err != nil {
 		fmt.Printf("failed to lookup IP: %v\n", err)
 		return
@@ -141,11 +159,8 @@ func runQueryCommand(params *Params, name string) {
 	fmt.Printf("Address:\t%s\n", from.FullAddress())
 	fmt.Printf("\n")
 
-	for _, ip := range result {
-		fmt.Printf("Name:\t%s\n", name)
-		fmt.Printf("Address: %s\n", ip.String())
-		fmt.Printf("\n")
-	}
+	fmt.Printf("Non-authoritative answer:\n")
+	showAnswers(result.Answers)
 }
 
 func updateParams(params *Params, cmd Command, r *dns.Resolver) bool {

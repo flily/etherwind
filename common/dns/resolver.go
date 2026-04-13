@@ -59,7 +59,7 @@ func (r *Resolver) getClient() (*Client, error) {
 	return client, nil
 }
 
-func (r *Resolver) QueryRaw(t Type, name string) (*Message, Endpoint, error) {
+func (r *Resolver) QueryRaw(ctx context.Context, t Type, name string) (*Message, Endpoint, error) {
 	client, err := r.getClient()
 	if err != nil {
 		return nil, nil, err
@@ -74,7 +74,7 @@ func (r *Resolver) QueryRaw(t Type, name string) (*Message, Endpoint, error) {
 }
 
 func (r *Resolver) QueryA(ctx context.Context, name string) ([]net.IP, Endpoint, error) {
-	response, endpoint, err := r.QueryRaw(TypeA, name)
+	response, endpoint, err := r.QueryRaw(ctx, TypeA, name)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -25,6 +25,15 @@ func NewUDPEndpoint(ip net.IP, port int) Endpoint {
 	return e
 }
 
+func ToUDPEndpoints(ips []net.IP, port int) []Endpoint {
+	endpoints := make([]Endpoint, len(ips))
+	for i, ip := range ips {
+		endpoints[i] = NewUDPEndpoint(ip, port)
+	}
+
+	return endpoints
+}
+
 func (e *UDPEndpoint) Address() string {
 	return e.IP.String()
 }
@@ -66,6 +75,15 @@ func NewTCPEndpoint(ip net.IP, port int) Endpoint {
 	return e
 }
 
+func ToTCPEndpoints(ips []net.IP, port int) []Endpoint {
+	endpoints := make([]Endpoint, len(ips))
+	for i, ip := range ips {
+		endpoints[i] = NewTCPEndpoint(ip, port)
+	}
+
+	return endpoints
+}
+
 func (e *TCPEndpoint) Address() string {
 	return e.IP.String()
 }
@@ -99,6 +117,15 @@ func NewUNIXEndpoint(path string) Endpoint {
 	}
 
 	return e
+}
+
+func ToUNIXEndpoints(paths []string) []Endpoint {
+	endpoints := make([]Endpoint, len(paths))
+	for i, path := range paths {
+		endpoints[i] = NewUNIXEndpoint(path)
+	}
+
+	return endpoints
 }
 
 func (e *UNIXEndpoint) Address() string {
