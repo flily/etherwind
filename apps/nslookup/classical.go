@@ -117,8 +117,15 @@ func ParseCommand(line string) Command {
 }
 
 func showAnswers(answers []dns.Resource) {
+	keys := make([]string, 0, len(answers))
 	for _, answer := range answers {
 		name := answer.Header.Name
+		key := dns.ResourceKey(answer)
+		if slices.Contains(keys, key) {
+			continue
+		}
+
+		keys = append(keys, key)
 
 		switch answer.Header.Type {
 		case dns.TypeA:

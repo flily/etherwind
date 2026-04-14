@@ -2,6 +2,8 @@ package dns
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"strings"
 
 	"golang.org/x/net/dns/dnsmessage"
@@ -11,8 +13,8 @@ type (
 	Type          = dnsmessage.Type
 	Message       = dnsmessage.Message
 	Resource      = dnsmessage.Resource
-	AAAAResource  = dnsmessage.AAAAResource
 	AResource     = dnsmessage.AResource
+	AAAAResource  = dnsmessage.AAAAResource
 	CNAMEResource = dnsmessage.CNAMEResource
 	MXResource    = dnsmessage.MXResource
 	NSResource    = dnsmessage.NSResource
@@ -104,6 +106,44 @@ func MergeAnswers(messages ...*Message) *Message {
 		result.Answers = append(result.Answers, msg.Answers...)
 		result.Authorities = append(result.Authorities, msg.Authorities...)
 		result.Additionals = append(result.Additionals, msg.Additionals...)
+	}
+
+	return result
+}
+
+func ResourceKey(r Resource) string {
+	result := "UNKNOWN"
+	switch t := r.Body.(type) {
+	case *AResource:
+		result = fmt.Sprintf("A:%s", net.IP(t.A[:]))
+
+	case *AAAAResource:
+		result = fmt.Sprintf("AAAA:%s", net.IP(t.AAAA[:]))
+
+	case *CNAMEResource:
+		result = fmt.Sprintf("CNAME:%s:%s", r.Header.Name, t.CNAME)
+
+	case *MXResource:
+		result = fmt.Sprintf("MX:%s:%d", t.MX, t.Pref)
+
+	case *NSResource:
+		result = fmt.Sprintf("NS:%s:%s", r.Header.Name, t.NS)
+
+	case *PTRResource:
+		result = fmt.Sprintf("PTR:%s:%s", r.Header.Name, t.PTR)
+
+	case *SOAResource:
+		result = fmt.Sprintf("SOA:%s:%s %s", r.Header.Name, t.NS, t.MBox)
+
+	case *SRVResource:
+		result = fmt.Sprintf("SRV:%s:%d %d %d", r.Header.Name, t.Port, t.Priority, t.Weight)
+
+	case *SVCBResource:
+		result = fmt.Sprintf("SVCB:%s:%d %s", r.Header.Name, t.Priority, t.Target)
+
+	case *TXTResource:
+		result = fmt.Sprintf("TXT:%s:%s", r.Header.Name, strings.Join(t.TXT, ","))
+
 	}
 
 	return result
