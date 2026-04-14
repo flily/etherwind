@@ -116,7 +116,7 @@ func ParseCommand(line string) Command {
 	return cmd
 }
 
-func showAnswers(answers []dnsmessage.Resource) {
+func showAnswers(answers []dns.Resource) {
 	for _, answer := range answers {
 		name := answer.Header.Name
 
@@ -125,6 +125,11 @@ func showAnswers(answers []dnsmessage.Resource) {
 			ans := answer.Body.(*dnsmessage.AResource)
 			fmt.Printf("Name:\t%s\n", name)
 			fmt.Printf("Address:\t%s\n", net.IP(ans.A[:]).String())
+
+		case dns.TypeAAAA:
+			ans := answer.Body.(*dnsmessage.AAAAResource)
+			fmt.Printf("Name:\t%s\n", name)
+			fmt.Printf("Address:\t%s\n", net.IP(ans.AAAA[:]).String())
 
 		case dns.TypeCNAME:
 			ans := answer.Body.(*dnsmessage.CNAMEResource)
@@ -149,15 +154,24 @@ func runQueryCommand(params *Params, name string) {
 		})
 	}
 
-	result, from, err := ns.QueryRaw(context.Background(), dns.TypeA, name)
-	if err != nil {
-		fmt.Printf("failed to lookup IP: %v\n", err)
-		return
+	var from dns.Endpoint
+	answers := make([]*dns.Message, 0, len(params.QueryType))
+	for _, queryType := range params.QueryType {
+		result, f, err := ns.QueryRaw(context.Background(), queryType, name)
+		if err != nil {
+			fmt.Printf("failed to lookup IP: %v\n", err)
+			return
+		}
+
+		answers = append(answers, result)
+		from = f
 	}
 
 	fmt.Printf("Server:\t\t%s\n", from.Address())
 	fmt.Printf("Address:\t%s\n", from.FullAddress())
 	fmt.Printf("\n")
+
+	result := dns.MergeAnswers(answers...)
 
 	fmt.Printf("Non-authoritative answer:\n")
 	showAnswers(result.Answers)

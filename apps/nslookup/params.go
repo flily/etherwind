@@ -2,6 +2,8 @@ package nslookup
 
 import (
 	"time"
+
+	"github.com/flily/etherwind/common/dns"
 )
 
 var (
@@ -28,13 +30,18 @@ var (
 )
 
 type Params struct {
-	Server  string
-	TCP     bool
-	Timeout time.Duration
+	QueryType []dns.Type
+	Server    string
+	TCP       bool
+	Timeout   time.Duration
 }
 
 func NewDefaultParams() *Params {
 	p := &Params{
+		QueryType: []dns.Type{
+			dns.TypeA,
+			dns.TypeAAAA,
+		},
 		Server:  "",
 		TCP:     false,
 		Timeout: 2 * time.Second,
