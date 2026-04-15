@@ -93,6 +93,10 @@ func (e *TCPEndpoint) FullAddress() string {
 	return base + "/tcp"
 }
 
+func (e *TCPEndpoint) String() string {
+	return e.FullAddress()
+}
+
 func (e *TCPEndpoint) Dial() (net.Conn, error) {
 	raddr := &net.TCPAddr{
 		IP:   e.IP,
@@ -134,6 +138,10 @@ func (e *UNIXEndpoint) Address() string {
 
 func (e *UNIXEndpoint) FullAddress() string {
 	return e.Path + "/unix"
+}
+
+func (e *UNIXEndpoint) String() string {
+	return e.FullAddress()
 }
 
 func (e *UNIXEndpoint) Dial() (net.Conn, error) {

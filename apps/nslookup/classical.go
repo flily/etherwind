@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strconv"
 
 	"github.com/flily/etherwind/common/dns"
 	"golang.org/x/net/dns/dnsmessage"
@@ -146,20 +147,7 @@ func showAnswers(answers []dns.Resource) {
 }
 
 func runQueryCommand(params *Params, name string) {
-	var ns *dns.Resolver
-	if len(params.Server) <= 0 {
-		rsv, err := dns.NewDefaultResolver()
-		if err != nil {
-			fmt.Printf("failed to load default nameserver")
-			return
-		}
-		ns = rsv
-
-	} else {
-		ns = dns.NewResolver([]dns.Endpoint{
-			dns.NewUDPEndpoint(net.ParseIP(params.Server), dns.DNSDefaultPort),
-		})
-	}
+	ns := params.Resolver
 
 	var from dns.Endpoint
 	answers := make([]*dns.Message, 0, len(params.QueryType))
@@ -184,39 +172,74 @@ func runQueryCommand(params *Params, name string) {
 	showAnswers(result.Answers)
 }
 
-func updateParams(params *Params, cmd Command, r *dns.Resolver) bool {
+func updateParamsSet(params *Params, cmd Command) {
+	switch cmd.OptionName {
+	case "type":
+		t := dns.GetType(cmd.OptionValue)
+		if t == 0 {
+			fmt.Printf("invalid query type: %s\n", cmd.OptionValue)
+			return
+		}
+
+		params.QueryType = []dns.Type{t}
+
+	case "port":
+		port, err := strconv.Atoi(cmd.OptionValue)
+		if err != nil {
+			fmt.Printf("invalid port '%s': not a valid number", cmd.OptionValue)
+			return
+		}
+
+		if port < 0 || port >= 65536 {
+			fmt.Printf("invalid port '%s': out of range", cmd.OptionValue)
+			return
+		}
+
+		params.Port = port
+		_ = params.ReloadResolver()
+
+		// case "vc":
+		// 	params.TCP = true
+		// 	_ = params.ReloadResolver()
+
+		// case "novc":
+		// 	params.TCP = false
+		// 	_ = params.ReloadResolver()
+	}
+}
+
+func updateParams(params *Params, cmd Command) bool {
 	switch cmd.Command {
 	case "exit":
 		return true
 
 	case "server":
 		params.Server = cmd.OptionName
-		server := net.ParseIP(cmd.OptionName)
-		if server == nil {
-			fmt.Printf("invalid server IP: %s\n", cmd.OptionName)
+		err := params.ReloadResolver()
+		if err != nil {
+			fmt.Printf("invalid server IP: %s: %s\n", err)
 			return false
 		}
 
-		loadedServer := r.Reload([]dns.Endpoint{
-			dns.NewUDPEndpoint(server, dns.DNSDefaultPort),
-		})
-		fmt.Printf("server:\t\t%s\n", server)
-		fmt.Printf("Address:\t%s\n", loadedServer[0])
+		fmt.Printf("server:\t\t%s\n", params.Resolver.Endpoints[0])
+		fmt.Printf("Address:\t%s\n", params.Resolver.Endpoints[0].FullAddress())
 
+	case "set":
+		updateParamsSet(params, cmd)
 	}
 
 	return false
 }
 
 func MainClassicalInteractiveLoop(finished chan<- struct{}) {
-	r, err := dns.NewDefaultResolver()
+	params := NewDefaultParams()
+	err := params.ReloadResolver()
 	if err != nil {
-		fmt.Printf("failed to load default nameserver: %v\n", err)
+		fmt.Printf("failed to load resolver: %v\n", err)
 		return
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	params := NewDefaultParams()
 
 	for {
 		fmt.Print(Prompt)
@@ -235,7 +258,7 @@ func MainClassicalInteractiveLoop(finished chan<- struct{}) {
 			runQueryCommand(params, cmd.Name)
 
 		} else {
-			exit := updateParams(params, cmd, r)
+			exit := updateParams(params, cmd)
 			if exit {
 				break
 			}
@@ -265,6 +288,7 @@ func MainClassicalNonInteractive(args []string) {
 	}
 
 	params := NewDefaultParams()
+
 	nameserver := ""
 	if len(args) > 1 {
 		nameserver = args[len(args)-1]

@@ -29,10 +29,15 @@ func TestGetType(t *testing.T) {
 		expected Type
 	}{
 		{"A", TypeA},
+		{"a", TypeA},
 		{"AAAA", TypeAAAA},
+		{"aaaa", TypeAAAA},
 		{"CNAME", TypeCNAME},
+		{"cname", TypeCNAME},
 		{"MX", TypeMX},
+		{"mx", TypeMX},
 		{"NS", TypeNS},
+		{"ns", TypeNS},
 		{"UNKNOWN", Type(0)},
 	}
 

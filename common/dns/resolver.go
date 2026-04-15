@@ -34,6 +34,21 @@ func NewDefaultResolver() (*Resolver, error) {
 	return NewResolver(endpoints), nil
 }
 
+func NewDefaultTCPResolver() (*Resolver, error) {
+	conf, err := ParseResolvConf(DefaultSystemResolverConfigurePath)
+	if err != nil {
+		return nil, err
+	}
+
+	endpoints := make([]Endpoint, 0, len(conf.Nameservers))
+	for _, ip := range conf.Nameservers {
+		ep := NewTCPEndpoint(ip, 53)
+		endpoints = append(endpoints, ep)
+	}
+
+	return NewResolver(endpoints), nil
+}
+
 func (r *Resolver) Reload(endpoints []Endpoint) []Endpoint {
 	r.Endpoints = endpoints
 	r.targets = make([]*Client, len(endpoints))

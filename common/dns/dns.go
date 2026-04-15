@@ -65,7 +65,7 @@ var typeNames = map[string]Type{
 }
 
 func GetType(name string) Type {
-	if t, ok := typeNames[name]; ok {
+	if t, ok := typeNames[strings.ToUpper(name)]; ok {
 		return t
 	}
 
