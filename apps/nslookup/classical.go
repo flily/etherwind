@@ -1,7 +1,6 @@
 package nslookup
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -12,8 +11,9 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/chzyer/readline"
+
 	"github.com/flily/etherwind/common/dns"
-	"golang.org/x/net/dns/dnsmessage"
 )
 
 const (
@@ -130,21 +130,21 @@ func showAnswers(answers []dns.Resource) {
 
 		switch answer.Header.Type {
 		case dns.TypeA:
-			ans := answer.Body.(*dnsmessage.AResource)
+			ans := answer.Body.(*dns.AResource)
 			fmt.Printf("Name:\t%s\n", name)
 			fmt.Printf("Address:\t%s\n", net.IP(ans.A[:]).String())
 
 		case dns.TypeAAAA:
-			ans := answer.Body.(*dnsmessage.AAAAResource)
+			ans := answer.Body.(*dns.AAAAResource)
 			fmt.Printf("Name:\t%s\n", name)
 			fmt.Printf("Address:\t%s\n", net.IP(ans.AAAA[:]).String())
 
 		case dns.TypeCNAME:
-			ans := answer.Body.(*dnsmessage.CNAMEResource)
+			ans := answer.Body.(*dns.CNAMEResource)
 			fmt.Printf("%s\tcanonical name = %s\n", name, ans.CNAME)
 
 		case dns.TypeSOA:
-			ans := answer.Body.(*dnsmessage.SOAResource)
+			ans := answer.Body.(*dns.SOAResource)
 			fmt.Printf("%s\n", answer.Header.Name)
 			fmt.Printf("\torigin = %s\n", ans.NS)
 			fmt.Printf("\tmail addr = %s\n", ans.MBox)
@@ -249,18 +249,25 @@ func updateParams(params *Params, cmd Command) bool {
 }
 
 func MainClassicalInteractiveLoop(finished chan<- struct{}) {
+	rl, err := readline.New(Prompt)
+	if err != nil {
+		fmt.Printf("failed to initialize readline: %v\n", err)
+		return
+	}
+	defer func() {
+		_ = rl.Close()
+	}()
+
 	params := NewDefaultParams()
-	err := params.ReloadResolver()
+	err = params.ReloadResolver()
 	if err != nil {
 		fmt.Printf("failed to load resolver: %v\n", err)
 		return
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-
 	for {
 		fmt.Print(Prompt)
-		line, _, err := reader.ReadLine()
+		line, err := rl.Readline()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
