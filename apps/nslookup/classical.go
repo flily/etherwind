@@ -142,6 +142,17 @@ func showAnswers(answers []dns.Resource) {
 		case dns.TypeCNAME:
 			ans := answer.Body.(*dnsmessage.CNAMEResource)
 			fmt.Printf("%s\tcanonical name = %s\n", name, ans.CNAME)
+
+		case dns.TypeSOA:
+			ans := answer.Body.(*dnsmessage.SOAResource)
+			fmt.Printf("%s\n", answer.Header.Name)
+			fmt.Printf("\torigin = %s\n", ans.NS)
+			fmt.Printf("\tmail addr = %s\n", ans.MBox)
+			fmt.Printf("\tserial = %d\n", ans.Serial)
+			fmt.Printf("\trefresh = %d\n", ans.Refresh)
+			fmt.Printf("\tretry = %d\n", ans.Retry)
+			fmt.Printf("\texpire = %d\n", ans.Expire)
+			fmt.Printf("\tminimum = %d\n", ans.MinTTL)
 		}
 	}
 }
@@ -170,6 +181,12 @@ func runQueryCommand(params *Params, name string) {
 
 	fmt.Printf("Non-authoritative answer:\n")
 	showAnswers(result.Answers)
+
+	if slices.Contains(params.QueryType, dns.TypeAAAA) {
+		fmt.Printf("\n")
+		fmt.Printf("Authoritative answers can be found from:\n")
+		showAnswers(result.Authorities)
+	}
 }
 
 func updateParamsSet(params *Params, cmd Command) {
@@ -217,7 +234,7 @@ func updateParams(params *Params, cmd Command) bool {
 		params.Server = cmd.OptionName
 		err := params.ReloadResolver()
 		if err != nil {
-			fmt.Printf("invalid server IP: %s: %s\n", err)
+			fmt.Printf("invalid server IP: %s\n", err)
 			return false
 		}
 

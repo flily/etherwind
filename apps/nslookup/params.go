@@ -93,6 +93,5 @@ func (p *Params) ReloadResolver() error {
 		p.Resolver.Reload(endpoints)
 	}
 
-	fmt.Printf("resolvers: %s\n", p.Resolver.Endpoints)
 	return nil
 }
