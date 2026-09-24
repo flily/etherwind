@@ -18,17 +18,19 @@ type PingRecord struct {
 	Finish      time.Time
 	Count       int
 	Success     int
+	TimeLast    float64
 	Records     []float64
 }
 
 func newPingRecord(cap int) *PingRecord {
 	t := time.Now()
 	r := &PingRecord{
-		Start:   t,
-		Finish:  t,
-		Count:   0,
-		Success: 0,
-		Records: make([]float64, 0, cap),
+		Start:    t,
+		Finish:   t,
+		Count:    0,
+		Success:  0,
+		TimeLast: 0.0,
+		Records:  make([]float64, 0, cap),
 	}
 
 	return r
@@ -46,7 +48,9 @@ func NewPingRecordWithIP(ip net.IP, cap int) *PingRecord {
 
 func (r *PingRecord) Add(value float64) {
 	r.Records = append(r.Records, value)
+	r.Success++
 	r.Count++
+	r.TimeLast = value
 	r.Finish = time.Now()
 }
 
