@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
 	"github.com/flily/etherwind/winds"
 )
 
@@ -18,14 +19,14 @@ type PingResult struct {
 	Err    error
 }
 
-func makePingRoutine(params *Params, ch chan<- *PingResult, record *PingRecord, pinger *winds.Pinger) {
+func makePingRoutine(params *Params, group int, ch chan<- *PingResult, record *PingRecord, pinger *winds.Pinger) {
 	addr := record.IP
 
 	payloadBase := winds.DefaultPingPayloadBase
 
 	count := params.Count
 	seq := 1
-	id := os.Getpid() & 0xffff
+	id := (os.Getpid() & 0x00ff) | ((group & 0x00ff) << 8)
 	for count < 0 || seq <= count {
 		// fmt.Fprintf(os.Stderr, "PING %s count=%d seq=%d\n", addr, count, seq)
 		result, err := pinger.Ping(addr, id, seq, payloadBase)
@@ -36,7 +37,7 @@ func makePingRoutine(params *Params, ch chan<- *PingResult, record *PingRecord, 
 		}
 		ch <- msg
 
-		seq++
+		seq = (seq + 1) & 0xffff
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -68,7 +69,7 @@ func newModel(params *Params, records []*PingRecord) *model {
 func (m *model) Init() tea.Cmd {
 	ch := m.ch
 
-	for _, record := range m.records {
+	for i, record := range m.records {
 		addr := record.IP
 		network := winds.NetworkIPv4
 		if addr.To4() == nil {
@@ -91,7 +92,7 @@ func (m *model) Init() tea.Cmd {
 			return tea.Quit
 		}
 
-		go makePingRoutine(m.params, ch, record, pinger)
+		go makePingRoutine(m.params, i, ch, record, pinger)
 	}
 
 	return makePingReceiver(ch)
@@ -148,6 +149,11 @@ func runTuiPing(params *Params, records []*PingRecord) {
 }
 
 func MainTui(params *Params) {
+	if len(params.Target) > 256 {
+		fmt.Printf("error: too many targets (maximum 256)\n")
+		return
+	}
+
 	records := make([]*PingRecord, 0, len(params.Target))
 	for _, target := range params.Target {
 		ip := net.ParseIP(target)
