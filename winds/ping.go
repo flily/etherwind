@@ -88,14 +88,16 @@ func NewPingConn(network string) (*PingConn, error) {
 	}
 
 	if pingConn.connV4 != nil {
-		if err := pingConn.connV4.SetControlMessage(ipv4.FlagTTL, true); err != nil {
+		err := pingConn.connV4.SetControlMessage(ipv4.FlagTTL, true)
+		if err != nil {
 			_ = conn.Close()
 			return nil, err
 		}
 	}
 
 	if pingConn.connV6 != nil {
-		if err := pingConn.connV6.SetControlMessage(ipv6.FlagHopLimit, true); err != nil {
+		err := pingConn.connV6.SetControlMessage(ipv6.FlagHopLimit, true)
+		if err != nil {
 			_ = conn.Close()
 			return nil, err
 		}

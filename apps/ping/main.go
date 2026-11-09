@@ -1,9 +1,5 @@
 package ping
 
-import (
-	"fmt"
-)
-
 func Main(args []string) {
 	set, params := ParseParams("ping", args)
 
@@ -16,6 +12,6 @@ func Main(args []string) {
 		MainClassical(params)
 
 	} else {
-		fmt.Printf("Not implemented: non-classical output format\n")
+		MainTui(params)
 	}
 }

@@ -20,7 +20,7 @@ func DefaultParams() *Params {
 		Interval:  1 * time.Second,
 		TTL:       64,
 		Timeout:   1 * time.Second,
-		Classical: true,
+		Classical: false,
 		Target:    []string{},
 	}
 
@@ -29,7 +29,7 @@ func DefaultParams() *Params {
 
 func ParseParams(name string, args []string) (*flag.FlagSet, *Params) {
 	params := DefaultParams()
-	set := flag.NewFlagSet(name, flag.ContinueOnError)
+	set := flag.NewFlagSet(name, flag.ExitOnError)
 
 	set.IntVar(&params.Count, "count", params.Count,
 		"Stop after sending (and receiving) count ECHO_RESPONSE packets.")

@@ -14,13 +14,7 @@ import (
 )
 
 func runClassicalPing(params *Params, records *PingRecord, finished chan struct{}) {
-	addr := net.ParseIP(params.Target[0])
-	if addr == nil {
-		fmt.Printf("Invalid IP address: %s\n", params.Target[0])
-		finished <- struct{}{}
-		return
-	}
-
+	addr := records.IP
 	network := winds.NetworkIPv4
 	if addr.To4() == nil {
 		network = winds.NetworkIPv6
@@ -78,7 +72,7 @@ func runClassicalPing(params *Params, records *PingRecord, finished chan struct{
 			result.TTL,
 			pingTimeMs,
 		)
-		records.Add(pingTimeMs)
+		records.Add(pingTimeMs, result.TTL)
 		seq++
 
 		time.Sleep(1 * time.Second)
@@ -88,23 +82,31 @@ func runClassicalPing(params *Params, records *PingRecord, finished chan struct{
 }
 
 func MainClassical(params *Params) {
-	finished := make(chan struct{})
-	records := NewPingRecord(3600)
+	target := net.ParseIP(params.Target[0])
+	if target == nil {
+		// support domain names in the future
+		fmt.Printf("Invalid IP address: %s\n", params.Target[0])
+		return
+	}
+
+	record := NewPingRecordWithIP(target, DefaultPingRecordCapacity)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	go runClassicalPing(params, records, finished)
+	finished := make(chan struct{})
+	go runClassicalPing(params, record, finished)
 
 	select {
 	case <-finished:
 	case <-ctx.Done():
+		// do nothing when interrupted
 	}
 
 	fmt.Printf("\n")
 	fmt.Printf("--- %s ping statistics ---\n", params.Target[0])
 	fmt.Printf("%d packets transmitted, %d received, %.2f%% packet loss, time %.2f ms\n",
-		records.Count, records.PacketsSuccess(), records.PacketLoss(), records.TimeCostMs())
+		record.Count, record.PacketsSuccess(), record.PacketLoss(), record.TimeCostMs())
 	fmt.Printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
-		records.Min(), records.Average(), records.Max(), records.StandardDeviation(),
+		record.Min(), record.Average(), record.Max(), record.StandardDeviation(),
 	)
 }
