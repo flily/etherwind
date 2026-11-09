@@ -59,6 +59,8 @@ func (r *PingRecord) Add(value float64, ttl int) {
 
 func (r *PingRecord) AddFailure() {
 	r.Count++
+	r.LastTime = 0.0
+	r.LastTTL = -1
 	r.Finish = time.Now()
 }
 

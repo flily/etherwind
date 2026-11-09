@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"charm.land/bubbles/v2/table"
@@ -20,7 +21,7 @@ var (
 		{Title: "icmp_seq", Width: 8},
 		{Title: "ttl", Width: 4},
 		{Title: "time", Width: 12},
-		{Title: "t/r", Width: 12},
+		{Title: "Rx / Tx", Width: 12},
 		{Title: "loss", Width: 8},
 		{Title: "total_time", Width: 15},
 		{Title: "min", Width: 12},
@@ -35,41 +36,11 @@ type PingResult struct {
 	Err    error
 }
 
-func makePingRoutine(params *Params, group int, ch chan<- *PingResult, record *PingRecord, pinger *winds.Pinger) {
-	addr := record.IP
-
-	payloadBase := winds.DefaultPingPayloadBase
-
-	count := params.Count
-	seq := 1
-	id := (os.Getpid() & 0x00ff) | ((group & 0x00ff) << 8)
-	for count < 0 || seq <= count {
-		// fmt.Fprintf(os.Stderr, "PING %s count=%d seq=%d\n", addr, count, seq)
-		result, err := pinger.Ping(addr, id, seq, payloadBase)
-		msg := &PingResult{
-			Result: result,
-			Record: record,
-			Err:    err,
-		}
-		ch <- msg
-
-		seq = (seq + 1) & 0xffff
-		time.Sleep(1 * time.Second)
-	}
-}
-
-func makePingReceiver(ch <-chan *PingResult) tea.Cmd {
-	return func() tea.Msg {
-		item := <-ch
-		// fmt.Fprintf(os.Stderr, "RECV: %+v\n", item)
-		return item
-	}
-}
-
 type model struct {
 	table   table.Model
 	ch      chan *PingResult
 	params  *Params
+	running atomic.Int32
 	records []*PingRecord
 }
 
@@ -91,6 +62,7 @@ func newModel(params *Params, records []*PingRecord) *model {
 		table:   t,
 		ch:      make(chan *PingResult, len(records)),
 		params:  params,
+		running: atomic.Int32{},
 		records: records,
 	}
 
@@ -111,9 +83,45 @@ func tableWidth(columns []table.Column) int {
 	return width
 }
 
+func (m *model) makePingRoutine(params *Params, group int, ch chan<- *PingResult, record *PingRecord, pinger *winds.Pinger) {
+	addr := record.IP
+	payloadBase := winds.DefaultPingPayloadBase
+
+	defer func() {
+		_ = pinger.Close()
+		ch <- nil
+	}()
+
+	count := params.Count
+	seq := 1
+	id := (os.Getpid() & 0x00ff) | ((group & 0x00ff) << 8)
+	for count < 0 || seq <= count {
+		// fmt.Fprintf(os.Stderr, "PING %s count=%d seq=%d\n", addr, count, seq)
+		result, err := pinger.Ping(addr, id, seq, payloadBase)
+		msg := &PingResult{
+			Result: result,
+			Record: record,
+			Err:    err,
+		}
+		ch <- msg
+
+		seq = (seq + 1) & 0xffff
+		time.Sleep(1 * params.Interval)
+	}
+}
+
+func (m *model) makePingReceiver(ch <-chan *PingResult) tea.Cmd {
+	return func() tea.Msg {
+		item := <-ch
+		// fmt.Fprintf(os.Stderr, "RECV: %+v\n", item)
+		return item
+	}
+}
+
 func (m *model) Init() tea.Cmd {
 	ch := m.ch
 
+	m.running.Store(int32(len(m.records)))
 	for i, record := range m.records {
 		addr := record.IP
 		network := winds.NetworkIPv4
@@ -137,10 +145,10 @@ func (m *model) Init() tea.Cmd {
 			return tea.Quit
 		}
 
-		go makePingRoutine(m.params, i, ch, record, pinger)
+		go m.makePingRoutine(m.params, i, ch, record, pinger)
 	}
 
-	return makePingReceiver(ch)
+	return m.makePingReceiver(ch)
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -153,7 +161,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+	case tea.QuitMsg:
+		fmt.Printf("Quit message received\n")
+		return m, tea.Quit
+
 	case *PingResult:
+		if msg == nil {
+			// ping goroutine finished
+			current := m.running.Add(-1)
+			if current > 0 {
+				return m, m.makePingReceiver(m.ch)
+			}
+
+			return m, tea.Quit
+		}
+
 		record := msg.Record
 		// fmt.Fprintf(os.Stderr, "UPDATE: recv %+v\n", msg)
 		result, err := msg.Result, msg.Err
@@ -166,11 +188,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			record.Add(pingTimeMs, result.TTL)
 		}
 
-		return m, makePingReceiver(m.ch)
+		return m, m.makePingReceiver(m.ch)
 	}
 
 	m.table, nextCmd = m.table.Update(msg)
-
 	return m, nextCmd
 }
 
