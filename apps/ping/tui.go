@@ -162,7 +162,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.QuitMsg:
-		fmt.Printf("Quit message received\n")
 		return m, tea.Quit
 
 	case *PingResult:
