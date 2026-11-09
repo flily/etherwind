@@ -5,12 +5,28 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/flily/etherwind/winds"
+)
+
+var (
+	columns = []table.Column{
+		{Title: "target", Width: 16},
+		{Title: "icmp_seq", Width: 8},
+		{Title: "ttl", Width: 4},
+		{Title: "time", Width: 12},
+		{Title: "t/r", Width: 12},
+		{Title: "loss", Width: 8},
+		{Title: "total_time", Width: 15},
+		{Title: "min", Width: 12},
+		{Title: "max", Width: 12},
+		{Title: "avg", Width: 12},
+	}
 )
 
 type PingResult struct {
@@ -51,19 +67,48 @@ func makePingReceiver(ch <-chan *PingResult) tea.Cmd {
 }
 
 type model struct {
+	table   table.Model
 	ch      chan *PingResult
 	params  *Params
 	records []*PingRecord
 }
 
 func newModel(params *Params, records []*PingRecord) *model {
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithHeight(1+len(records)),
+		table.WithWidth(tableWidth(columns)),
+		table.WithFocused(true),
+	)
+	s := table.DefaultStyles()
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
+	t.SetStyles(s)
+
 	m := &model{
-		ch:      make(chan *PingResult, 10),
+		table:   t,
+		ch:      make(chan *PingResult, len(records)),
 		params:  params,
 		records: records,
 	}
 
 	return m
+}
+
+func tableWidth(columns []table.Column) int {
+	width := 0
+	for _, col := range columns {
+		width += col.Width
+	}
+
+	if len(columns) > 1 {
+		// two-space border by default
+		width += (2 * len(columns)) + 1
+	}
+
+	return width
 }
 
 func (m *model) Init() tea.Cmd {
@@ -99,6 +144,8 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var nextCmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -116,28 +163,50 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		} else {
 			pingTimeMs := float64(result.Duration) / float64(time.Millisecond)
-			record.Add(pingTimeMs)
+			record.Add(pingTimeMs, result.TTL)
 		}
+
 		return m, makePingReceiver(m.ch)
 	}
 
-	return m, nil
+	m.table, nextCmd = m.table.Update(msg)
+
+	return m, nextCmd
+}
+
+func (m *model) makeRow(record *PingRecord) table.Row {
+	row := make([]string, 0, len(columns))
+
+	row = append(row,
+		record.IP.String(),                                   // target
+		fmt.Sprintf("%d", len(record.Records)),               // icmp_seq
+		fmt.Sprintf("%d", record.LastTTL),                    // ttl
+		fmt.Sprintf("%.3f ms", record.LastTime),              // time
+		fmt.Sprintf("%d / %d", record.Success, record.Count), // transmitted / received
+		fmt.Sprintf("%.1f %%", record.PacketLoss()),          // loss
+		fmt.Sprintf("%.1f ms", record.TimeCostMs()),          // total_time
+		fmt.Sprintf("%.3f ms", record.Min()),                 // min
+		fmt.Sprintf("%.3f ms", record.Max()),                 // max
+		fmt.Sprintf("%.3f ms", record.Average()),             // avg
+	)
+
+	return table.Row(row)
+}
+
+func (m *model) makeRows() []table.Row {
+	rows := make([]table.Row, 0, len(m.records))
+	for _, record := range m.records {
+		rows = append(rows, m.makeRow(record))
+	}
+
+	return rows
 }
 
 func (m *model) View() tea.View {
-	buf := make([]string, 0, len(m.records))
-	for _, record := range m.records {
-		ms := 0.0
-		if len(record.Records) > 0 {
-			ms = record.Records[len(record.Records)-1]
-		}
-		s := fmt.Sprintf("ping %s  ->>  %d / %d  latest=%.2fms",
-			record.IP, len(record.Records), record.Count, ms)
+	rows := m.makeRows()
+	m.table.SetRows(rows)
 
-		// fmt.Fprintf(os.Stderr, "[%d] VIEW: r = %+v\n", i, record)
-		buf = append(buf, s)
-	}
-	return tea.NewView(strings.Join(buf, "\n") + "\n")
+	return tea.NewView(m.table.View() + "\n")
 }
 
 func runTuiPing(params *Params, records []*PingRecord) {

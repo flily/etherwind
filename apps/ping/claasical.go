@@ -72,7 +72,7 @@ func runClassicalPing(params *Params, records *PingRecord, finished chan struct{
 			result.TTL,
 			pingTimeMs,
 		)
-		records.Add(pingTimeMs)
+		records.Add(pingTimeMs, result.TTL)
 		seq++
 
 		time.Sleep(1 * time.Second)

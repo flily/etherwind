@@ -18,7 +18,8 @@ type PingRecord struct {
 	Finish      time.Time
 	Count       int
 	Success     int
-	TimeLast    float64
+	LastTime    float64
+	LastTTL     int
 	Records     []float64
 }
 
@@ -29,7 +30,8 @@ func newPingRecord(cap int) *PingRecord {
 		Finish:   t,
 		Count:    0,
 		Success:  0,
-		TimeLast: 0.0,
+		LastTime: 0.0,
+		LastTTL:  -1,
 		Records:  make([]float64, 0, cap),
 	}
 
@@ -46,11 +48,12 @@ func NewPingRecordWithIP(ip net.IP, cap int) *PingRecord {
 	return newPingRecord(cap).WithIP(ip)
 }
 
-func (r *PingRecord) Add(value float64) {
+func (r *PingRecord) Add(value float64, ttl int) {
 	r.Records = append(r.Records, value)
 	r.Success++
 	r.Count++
-	r.TimeLast = value
+	r.LastTime = value
+	r.LastTTL = ttl
 	r.Finish = time.Now()
 }
 
